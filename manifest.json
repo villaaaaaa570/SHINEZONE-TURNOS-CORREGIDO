@@ -1,15 +1,11 @@
 {
   "name": "ShineZone Detail — Turnos",
   "short_name": "ShineZone",
-  "start_url": "./",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#050b10",
-  "theme_color": "#ffd928",
+  "theme_color": "#050b10",
   "icons": [
-    {
-      "src": "icon-1024.png",
-      "sizes": "1024x1024",
-      "type": "image/png"
-    }
+    {"src":"icon-1024.png","sizes":"1024x1024","type":"image/png","purpose":"any maskable"}
   ]
 }
