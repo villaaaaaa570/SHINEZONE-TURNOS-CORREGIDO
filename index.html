@@ -25,6 +25,8 @@ label{display:block;font-size:12px;color:#aeb8c0;margin:12px 0 6px}input,select{
 .formbuttons{display:flex;gap:10px;margin-top:18px}.secondary{background:#17222b;color:#fff;padding:12px 16px;border-radius:10px}
 footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media(max-width:760px){.app{padding:14px}.grid{grid-template-columns:1fr}.brand{font-size:22px}header .primary{display:none}.slot{grid-template-columns:65px 1fr auto}}
+
+.day-edit{border:1px solid #25333f;border-radius:12px;padding:12px;margin:10px 0;background:#09121a}.day-edit strong{display:block;color:#ffd928;margin-bottom:8px}.time-row{display:flex;gap:7px;flex-wrap:wrap}.time-chip{display:flex;align-items:center;gap:5px;background:#111d27;border-radius:9px;padding:5px 7px}.time-chip button{background:transparent;color:#ff3150;padding:2px 4px}.add-time{display:flex;gap:7px;margin-top:8px}.add-time input{flex:1}.secondary{background:#17222b;color:#fff;padding:12px 16px;border-radius:12px}
 </style>
 </head>
 <body>
@@ -35,10 +37,13 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
 </header>
 <div class="days" id="tabs"></div>
 <button class="primary" id="copyBtn" style="width:100%;margin-bottom:20px">📋 Copiar disponibilidad</button>
+<button class="secondary" id="manageBtn" style="width:100%;margin-bottom:20px">⚙️ Editar horarios</button>
 <div class="grid" id="cards"></div>
 <footer><span>📍 Ensenada</span><span>📞 +54 221 306-1976</span><span>◎ @ShineZone.detail</span></footer>
 </div>
 <button class="fab" onclick="openNew()">＋</button>
+
+<div class="modal" id="scheduleModal"><div class="box"><h3>Editar horarios</h3><p style="color:#9da8b1;font-size:13px">Agregá o quitá los horarios que quieras para cada día.</p><div id="scheduleEditor"></div><div class="formbuttons"><button class="primary" id="saveScheduleBtn">Guardar horarios</button><button class="secondary" id="closeScheduleBtn">Cancelar</button></div></div></div>
 
 <div class="modal" id="modal">
 <div class="box">
@@ -55,7 +60,9 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
 
 <script>
 "use strict";
-const schedule={"Lunes":[],"Martes":["10:00","13:00"],"Miércoles":["15:00"],"Jueves":["10:00","13:00","15:30"],"Viernes":["14:00","16:00"],"Sábado":["09:00","12:00","15:00"],"Domingo":[]};
+const defaultSchedule={"Lunes":[],"Martes":["10:00","13:00"],"Miércoles":["15:00"],"Jueves":["10:00","13:00","15:30"],"Viernes":["14:00","16:00"],"Sábado":["09:00","12:00","15:00"],"Domingo":[]};
+let schedule={};
+try{schedule=JSON.parse(localStorage.getItem("shinezone_schedule")||"null")||defaultSchedule;}catch(e){schedule=defaultSchedule;}
 const closed=["Lunes","Domingo"];
 const tabsEl=document.getElementById("tabs"), cardsEl=document.getElementById("cards"), modalEl=document.getElementById("modal"), titleEl=document.getElementById("modalTitle"), dayEl=document.getElementById("day"), timeEl=document.getElementById("time"), nameEl=document.getElementById("name"), serviceEl=document.getElementById("service"), copyBtn=document.getElementById("copyBtn");
 let bookings={};
@@ -100,6 +107,36 @@ document.querySelectorAll(".secondary").forEach(b=>b.addEventListener("click",cl
 document.querySelectorAll(".formbuttons .primary").forEach(b=>b.addEventListener("click",saveBooking));
 copyBtn.addEventListener("click",copyAvailability);
 render();
+
+const scheduleModal=document.getElementById("scheduleModal");
+const editorEl=document.getElementById("scheduleEditor");
+document.getElementById("manageBtn").addEventListener("click",openScheduleEditor);
+document.getElementById("closeScheduleBtn").addEventListener("click",()=>scheduleModal.classList.remove("show"));
+document.getElementById("saveScheduleBtn").addEventListener("click",saveScheduleEditor);
+function openScheduleEditor(){
+  editorEl.innerHTML="";
+  Object.keys(defaultSchedule).forEach(d=>{
+    const wrap=document.createElement("div");wrap.className="day-edit";wrap.dataset.day=d;
+    wrap.innerHTML=`<strong>${d}</strong><div class="time-row"></div><div class="add-time"><input type="time"><button class="primary" type="button">＋ Agregar</button></div>`;
+    const row=wrap.querySelector('.time-row');
+    (schedule[d]||[]).forEach(t=>addTimeChip(row,t));
+    wrap.querySelector('.add-time button').addEventListener('click',()=>{const inp=wrap.querySelector('input');if(inp.value){addTimeChip(row,inp.value);inp.value='';}});
+    editorEl.appendChild(wrap);
+  });
+  scheduleModal.classList.add("show");
+}
+function addTimeChip(row,t){
+  if([...row.querySelectorAll('.time-chip')].some(x=>x.dataset.time===t)) return;
+  const chip=document.createElement('span');chip.className='time-chip';chip.dataset.time=t;chip.innerHTML=`${t}<button type="button">✕</button>`;
+  chip.querySelector('button').addEventListener('click',()=>chip.remove());row.appendChild(chip);
+}
+function saveScheduleEditor(){
+  const next={};
+  editorEl.querySelectorAll('.day-edit').forEach(w=>{next[w.dataset.day]=[...w.querySelectorAll('.time-chip')].map(x=>x.dataset.time).sort();});
+  schedule=next;localStorage.setItem('shinezone_schedule',JSON.stringify(schedule));
+  if(!schedule[selectedDay]) selectedDay='Martes';
+  scheduleModal.classList.remove('show');render();
+}
 </script>
 </body>
 </html>
