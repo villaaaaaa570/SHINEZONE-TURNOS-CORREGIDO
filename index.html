@@ -34,6 +34,7 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
   <button class="primary" onclick="openNew()">＋ Agregar turno</button>
 </header>
 <div class="days" id="tabs"></div>
+<button class="primary" id="copyBtn" style="width:100%;margin-bottom:20px">📋 Copiar disponibilidad</button>
 <div class="grid" id="cards"></div>
 <footer><span>📍 Ensenada</span><span>📞 +54 221 306-1976</span><span>◎ @ShineZone.detail</span></footer>
 </div>
@@ -53,69 +54,51 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
 </div></div>
 
 <script>
-const schedule={
-"Lunes":[],
-"Martes":["10:00","13:00"],
-"Miércoles":["15:00"],
-"Jueves":["10:00","13:00","15:30"],
-"Viernes":["14:00","16:00"],
-"Sábado":["09:00","12:00","15:00"],
-"Domingo":[]
-};
+"use strict";
+const schedule={"Lunes":[],"Martes":["10:00","13:00"],"Miércoles":["15:00"],"Jueves":["10:00","13:00","15:30"],"Viernes":["14:00","16:00"],"Sábado":["09:00","12:00","15:00"],"Domingo":[]};
 const closed=["Lunes","Domingo"];
-const tabs=document.getElementById("tabs");
-const cards=document.getElementById("cards");
-const modal=document.getElementById("modal");
-const modalTitle=document.getElementById("modalTitle");
-const day=document.getElementById("day");
-const time=document.getElementById("time");
-const name=document.getElementById("name");
-const service=document.getElementById("service");
+const tabsEl=document.getElementById("tabs"), cardsEl=document.getElementById("cards"), modalEl=document.getElementById("modal"), titleEl=document.getElementById("modalTitle"), dayEl=document.getElementById("day"), timeEl=document.getElementById("time"), nameEl=document.getElementById("name"), serviceEl=document.getElementById("service"), copyBtn=document.getElementById("copyBtn");
 let bookings={};
-try { bookings=JSON.parse(localStorage.getItem("shinezone_bookings")||"{}"); } catch(e) { bookings={}; }
+try{const raw=localStorage.getItem("shinezone_bookings"); if(raw) bookings=JSON.parse(raw)||{};}catch(e){bookings={};}
 let selectedDay="Martes", editingKey=null;
-
-function key(d,t){return d+"_"+t}
+const key=(d,t)=>d+"_"+t;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+function saveData(){try{localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));return true}catch(e){alert("No se pudo guardar en este iPhone. Revisá que Safari permita almacenamiento para esta página.");return false;}}
 function render(){
-  tabs.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?'active':''}" onclick="selectedDay='${d}';render()">${d.slice(0,3).toUpperCase()}</button>`).join("");
-  cards.innerHTML=Object.entries(schedule).map(([d,times])=>{
-    if(closed.includes(d)) return `<div class="card"><h2>${d}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles.</div></div>`;
-    return `<div class="card"><h2>${d}</h2>${times.map(t=>{
-      const b=bookings[key(d,t)];
-      return `<div class="slot">
-        <div class="time">${t}</div>
-        <div>${b?`<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`:`<span class="status free">DISPONIBLE</span>`}</div>
-        <div class="actions">${b?`<button title="Editar" onclick="editBooking('${d}','${t}')">✎</button><button title="Eliminar" onclick="deleteBooking('${d}','${t}')">🗑</button>`:""}</div>
-      </div>`;
-    }).join("")}</div>`;
-  }).join("");
+ tabsEl.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?"active":""}" data-day="${esc(d)}">${d.slice(0,3).toUpperCase()}</button>`).join("");
+ tabsEl.querySelectorAll(".daytab").forEach(b=>b.addEventListener("click",()=>{selectedDay=b.dataset.day;render();}));
+ const times=schedule[selectedDay]||[];
+ if(closed.includes(selectedDay)){cardsEl.innerHTML=`<div class="card"><h2>${selectedDay}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles.</div></div>`;return;}
+ cardsEl.innerHTML=`<div class="card"><h2>${selectedDay}</h2>${times.map(t=>{const b=bookings[key(selectedDay,t)];return `<div class="slot"><div class="time">${t}</div><div>${b?`<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`:`<span class="status free">DISPONIBLE</span>`}</div><div class="actions">${b?`<button class="edit" data-time="${t}">✎</button><button class="delete" data-time="${t}">🗑</button>`:`<button class="add" data-time="${t}" style="color:#ffd928;font-size:22px;background:transparent">＋</button>`}</div></div>`;}).join("")}</div>`;
+ cardsEl.querySelectorAll(".add").forEach(b=>b.addEventListener("click",()=>openNew(selectedDay,b.dataset.time)));
+ cardsEl.querySelectorAll(".edit").forEach(b=>b.addEventListener("click",()=>editBooking(selectedDay,b.dataset.time)));
+ cardsEl.querySelectorAll(".delete").forEach(b=>b.addEventListener("click",()=>deleteBooking(selectedDay,b.dataset.time)));
 }
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function fillDays(){day.innerHTML=Object.keys(schedule).filter(d=>!closed.includes(d)).map(d=>`<option>${d}</option>`).join(""); updateTimes()}
-function updateTimes(){const d=day.value;time.innerHTML=(schedule[d]||[]).map(t=>`<option>${t}</option>`).join("")}
-day.addEventListener("change",updateTimes);
-function openNew(){
- editingKey=null;modalTitle.textContent="Agregar turno";fillDays();day.value=selectedDay==="Lunes"||selectedDay==="Domingo"?"Martes":selectedDay;updateTimes();
- name.value="";service.value="";modal.classList.add("show");
-}
-function editBooking(d,t){
- editingKey=key(d,t);modalTitle.textContent="Editar turno";fillDays();day.value=d;updateTimes();time.value=t;
- name.value=bookings[editingKey].name;service.value=bookings[editingKey].service||"";modal.classList.add("show");
-}
+function fillDays(){dayEl.innerHTML=Object.keys(schedule).filter(d=>!closed.includes(d)).map(d=>`<option value="${esc(d)}">${d}</option>`).join("");updateTimes();}
+function updateTimes(){const d=dayEl.value;timeEl.innerHTML=(schedule[d]||[]).map(t=>`<option value="${t}">${t}</option>`).join("");}
+function openNew(d=selectedDay,t=""){editingKey=null;titleEl.textContent="Agregar turno";fillDays();if(closed.includes(d))d="Martes";dayEl.value=d;updateTimes();if(t)timeEl.value=t;nameEl.value="";serviceEl.value="";modalEl.classList.add("show");setTimeout(()=>nameEl.focus(),100);}
+function editBooking(d,t){editingKey=key(d,t);titleEl.textContent="Editar turno";fillDays();dayEl.value=d;updateTimes();timeEl.value=t;nameEl.value=bookings[editingKey]?.name||"";serviceEl.value=bookings[editingKey]?.service||"";modalEl.classList.add("show");setTimeout(()=>nameEl.focus(),100);}
 function saveBooking(){
- const d=day.value,t=time.value,n=name.value.trim();
- if(!n){alert("Poné el nombre del cliente.");return}
- const old=editingKey;
- if(old && old!==key(d,t)) delete bookings[old];
- const k=key(d,t);
- if(bookings[k] && k!==old){alert("Ese turno ya está ocupado.");return}
- bookings[k]={name:n,service:service.value.trim()};
- localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));selectedDay=d;closeModal();render();
+ try{
+  const d=dayEl.value,t=timeEl.value,n=nameEl.value.trim(),svc=serviceEl.value.trim();
+  if(!d||!t){alert("Elegí día y horario.");return;}
+  if(!n){alert("Poné el nombre del cliente.");nameEl.focus();return;}
+  const old=editingKey,k=key(d,t);
+  if(bookings[k]&&k!==old){alert("Ese turno ya está ocupado.");return;}
+  if(old&&old!==k)delete bookings[old];
+  bookings[k]={name:n,service:svc};
+  if(!saveData())return;
+  selectedDay=d;editingKey=null;modalEl.classList.remove("show");render();
+ }catch(e){alert("Error al guardar: "+e.message);}
 }
-function deleteBooking(d,t){
- if(confirm(`¿Sacar el turno de ${bookings[key(d,t)].name}?`)){delete bookings[key(d,t)];localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));render()}
-}
-function closeModal(){modal.classList.remove("show")}
+function deleteBooking(d,t){const b=bookings[key(d,t)];if(b&&confirm(`¿Sacar el turno de ${b.name}?`)){delete bookings[key(d,t)];saveData();render();}}
+function closeModal(){modalEl.classList.remove("show");editingKey=null;}
+function copyAvailability(){let msg="¡Hola! 👋 Estos son los turnos disponibles en ShineZone Detail:\n\n",found=false;for(const [d,times] of Object.entries(schedule)){const free=times.filter(t=>!bookings[key(d,t)]);if(free.length){found=true;msg+=`📅 ${d}\n`;free.forEach(t=>msg+=`• ${t}\n`);msg+="\n";}}if(!found)msg="¡Hola! 👋 En este momento no tengo turnos disponibles. Si querés, te aviso cuando se libere uno. 🙌";else msg+="Decime cuál te queda mejor y te lo reservo. 🙌";navigator.clipboard?.writeText(msg).then(()=>{copyBtn.textContent="✅ ¡Copiado!";setTimeout(()=>copyBtn.textContent="📋 Copiar disponibilidad",1500)}).catch(()=>{const ta=document.createElement("textarea");ta.value=msg;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();copyBtn.textContent="✅ ¡Copiado!";setTimeout(()=>copyBtn.textContent="📋 Copiar disponibilidad",1500);});}
+dayEl.addEventListener("change",updateTimes);
+document.querySelectorAll(".primary").forEach(b=>b.addEventListener("click",()=>openNew()));
+document.querySelectorAll(".secondary").forEach(b=>b.addEventListener("click",closeModal));
+document.querySelectorAll(".formbuttons .primary").forEach(b=>b.addEventListener("click",saveBooking));
+copyBtn.addEventListener("click",copyAvailability);
 render();
 </script>
 </body>
