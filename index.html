@@ -32,7 +32,11 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ShineZone">
 <meta name="theme-color" content="#050b10">
-</head>
+<link rel="icon" type="image/png" sizes="1024x1024" href="icon-1024.png">
+<link rel="apple-touch-icon" href="icon-1024.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ShineZone"></head>
 <body>
 <div class="app">
 <header>
@@ -69,16 +73,49 @@ function key(d,t){return d+"_"+t}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function persist(){try{localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));return true}catch(e){alert("El navegador no permite guardar los turnos. Abrí la app directamente en Safari y probá de nuevo.");return false}}
 function render(){
- tabsEl.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?'active':''}" onclick="selectDay('${d}')">${d.slice(0,3).toUpperCase()}</button>`).join("");
- cardsEl.innerHTML=Object.entries(schedule).map(([d,times])=>{
-  if(closed.includes(d)) return `<div class="card"><h2>${d}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles.</div></div>`;
-  return `<div class="card"><h2>${d}</h2>${times.map(t=>{const b=bookings[key(d,t)];return `<div class="slot"><div class="time">${t}</div><div>${b?`<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`:`<span class="status free">DISPONIBLE</span>`}</div><div class="actions">${b?`<button title="Editar" onclick="editBooking('${d}','${t}')">✎</button><button title="Eliminar" onclick="deleteBooking('${d}','${t}')">🗑</button>`:""}</div></div>`}).join("")}</div>`;
- }).join("");
+ tabsEl.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?'active':''}" onclick="selectDay('${d}')">${d}</button>`).join("");
+
+ const d=selectedDay;
+ const times=schedule[d]||[];
+
+ if(closed.includes(d)){
+  cardsEl.innerHTML=`<div class="card" style="grid-column:1/-1"><h2>${d}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles este día.</div></div>`;
+  return;
+ }
+
+ cardsEl.innerHTML=`<div class="card" style="grid-column:1/-1"><h2>Turnos del ${d}</h2>${
+  times.length ? times.map(t=>{
+   const b=bookings[key(d,t)];
+   return `<div class="slot">
+    <div class="time">${t}</div>
+    <div>${b
+      ? `<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`
+      : `<span class="status free">DISPONIBLE</span><div class="service">Podés agendar este turno</div>`}
+    </div>
+    <div class="actions">${b
+      ? `<button title="Editar" onclick="editBooking('${d}','${t}')">✎</button><button title="Eliminar" onclick="deleteBooking('${d}','${t}')">🗑</button>`
+      : `<button title="Agendar" onclick="openNewFor('${d}','${t}')">＋</button>`}
+    </div>
+   </div>`;
+  }).join("") : `<div class="empty">No hay turnos cargados para este día.</div>`
+ }</div>`;
 }
+
 function selectDay(d){selectedDay=d;render()}
 function fillDays(){dayEl.innerHTML=Object.keys(schedule).filter(d=>!closed.includes(d)).map(d=>`<option value="${d}">${d}</option>`).join("");updateTimes()}
 function updateTimes(){const d=dayEl.value;timeEl.innerHTML=(schedule[d]||[]).map(t=>`<option value="${t}">${t}</option>`).join("")}
 dayEl.addEventListener("change",updateTimes);
+function openNewFor(d,t){
+ editingKey=null;
+ titleEl.textContent="Agregar turno";
+ fillDays();
+ dayEl.value=d;
+ updateTimes();
+ timeEl.value=t;
+ nameEl.value="";
+ serviceEl.value="";
+ modalEl.classList.add("show");
+}
 function openNew(){editingKey=null;titleEl.textContent="Agregar turno";fillDays();dayEl.value=(closed.includes(selectedDay)?"Martes":selectedDay);updateTimes();nameEl.value="";serviceEl.value="";modalEl.classList.add("show")}
 function editBooking(d,t){editingKey=key(d,t);titleEl.textContent="Editar turno";fillDays();dayEl.value=d;updateTimes();timeEl.value=t;nameEl.value=bookings[editingKey].name;serviceEl.value=bookings[editingKey].service||"";modalEl.classList.add("show")}
 function saveBooking(){
