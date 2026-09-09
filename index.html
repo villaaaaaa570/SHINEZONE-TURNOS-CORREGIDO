@@ -25,10 +25,18 @@ label{display:block;font-size:12px;color:#aeb8c0;margin:12px 0 6px}input,select{
 .formbuttons{display:flex;gap:10px;margin-top:18px}.secondary{background:#17222b;color:#fff;padding:12px 16px;border-radius:10px}
 footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media(max-width:760px){.app{padding:14px}.grid{grid-template-columns:1fr}.brand{font-size:22px}header .primary{display:none}.slot{grid-template-columns:65px 1fr auto}}
-
-.day-edit{border:1px solid #25333f;border-radius:12px;padding:12px;margin:10px 0;background:#09121a}.day-edit strong{display:block;color:#ffd928;margin-bottom:8px}.time-row{display:flex;gap:7px;flex-wrap:wrap}.time-chip{display:flex;align-items:center;gap:5px;background:#111d27;border-radius:9px;padding:5px 7px}.time-chip button{background:transparent;color:#ff3150;padding:2px 4px}.add-time{display:flex;gap:7px;margin-top:8px}.add-time input{flex:1}.secondary{background:#17222b;color:#fff;padding:12px 16px;border-radius:12px}
 </style>
-</head>
+
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ShineZone">
+<meta name="theme-color" content="#050b10">
+<link rel="icon" type="image/png" sizes="1024x1024" href="icon-1024.png">
+<link rel="apple-touch-icon" href="icon-1024.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ShineZone"></head>
 <body>
 <div class="app">
 <header>
@@ -36,14 +44,10 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
   <button class="primary" onclick="openNew()">＋ Agregar turno</button>
 </header>
 <div class="days" id="tabs"></div>
-<button class="primary" id="copyBtn" style="width:100%;margin-bottom:20px">📋 Copiar disponibilidad</button>
-<button class="secondary" id="manageBtn" style="width:100%;margin-bottom:20px">⚙️ Editar horarios</button>
 <div class="grid" id="cards"></div>
 <footer><span>📍 Ensenada</span><span>📞 +54 221 306-1976</span><span>◎ @ShineZone.detail</span></footer>
 </div>
 <button class="fab" onclick="openNew()">＋</button>
-
-<div class="modal" id="scheduleModal"><div class="box"><h3>Editar horarios</h3><p style="color:#9da8b1;font-size:13px">Agregá o quitá los horarios que quieras para cada día.</p><div id="scheduleEditor"></div><div class="formbuttons"><button class="primary" id="saveScheduleBtn">Guardar horarios</button><button class="secondary" id="closeScheduleBtn">Cancelar</button></div></div></div>
 
 <div class="modal" id="modal">
 <div class="box">
@@ -59,84 +63,75 @@ footer{margin-top:25px;padding:18px;color:#aeb8c0;font-size:13px;display:flex;ju
 </div></div>
 
 <script>
-"use strict";
-const defaultSchedule={"Lunes":[],"Martes":["10:00","13:00"],"Miércoles":["15:00"],"Jueves":["10:00","13:00","15:30"],"Viernes":["14:00","16:00"],"Sábado":["09:00","12:00","15:00"],"Domingo":[]};
-let schedule={};
-try{schedule=JSON.parse(localStorage.getItem("shinezone_schedule")||"null")||defaultSchedule;}catch(e){schedule=defaultSchedule;}
+const schedule={"Lunes":[],"Martes":["10:00","13:00"],"Miércoles":["15:00"],"Jueves":["10:00","13:00","15:30"],"Viernes":["14:00","16:00"],"Sábado":["09:00","12:00","15:00"],"Domingo":[]};
 const closed=["Lunes","Domingo"];
-const tabsEl=document.getElementById("tabs"), cardsEl=document.getElementById("cards"), modalEl=document.getElementById("modal"), titleEl=document.getElementById("modalTitle"), dayEl=document.getElementById("day"), timeEl=document.getElementById("time"), nameEl=document.getElementById("name"), serviceEl=document.getElementById("service"), copyBtn=document.getElementById("copyBtn");
-let bookings={};
-try{const raw=localStorage.getItem("shinezone_bookings"); if(raw) bookings=JSON.parse(raw)||{};}catch(e){bookings={};}
+const $=id=>document.getElementById(id);
+const tabsEl=$("tabs"), cardsEl=$("cards"), modalEl=$("modal"), dayEl=$("day"), timeEl=$("time"), nameEl=$("name"), serviceEl=$("service"), titleEl=$("modalTitle");
+let bookings={}; try{bookings=JSON.parse(localStorage.getItem("shinezone_bookings")||"{}")}catch(e){bookings={}}
 let selectedDay="Martes", editingKey=null;
-const key=(d,t)=>d+"_"+t;
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-function saveData(){try{localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));return true}catch(e){alert("No se pudo guardar en este iPhone. Revisá que Safari permita almacenamiento para esta página.");return false;}}
+function key(d,t){return d+"_"+t}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function persist(){try{localStorage.setItem("shinezone_bookings",JSON.stringify(bookings));return true}catch(e){alert("El navegador no permite guardar los turnos. Abrí la app directamente en Safari y probá de nuevo.");return false}}
 function render(){
- tabsEl.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?"active":""}" data-day="${esc(d)}">${d.slice(0,3).toUpperCase()}</button>`).join("");
- tabsEl.querySelectorAll(".daytab").forEach(b=>b.addEventListener("click",()=>{selectedDay=b.dataset.day;render();}));
- const times=schedule[selectedDay]||[];
- if(closed.includes(selectedDay)){cardsEl.innerHTML=`<div class="card"><h2>${selectedDay}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles.</div></div>`;return;}
- cardsEl.innerHTML=`<div class="card"><h2>${selectedDay}</h2>${times.map(t=>{const b=bookings[key(selectedDay,t)];return `<div class="slot"><div class="time">${t}</div><div>${b?`<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`:`<span class="status free">DISPONIBLE</span>`}</div><div class="actions">${b?`<button class="edit" data-time="${t}">✎</button><button class="delete" data-time="${t}">🗑</button>`:`<button class="add" data-time="${t}" style="color:#ffd928;font-size:22px;background:transparent">＋</button>`}</div></div>`;}).join("")}</div>`;
- cardsEl.querySelectorAll(".add").forEach(b=>b.addEventListener("click",()=>openNew(selectedDay,b.dataset.time)));
- cardsEl.querySelectorAll(".edit").forEach(b=>b.addEventListener("click",()=>editBooking(selectedDay,b.dataset.time)));
- cardsEl.querySelectorAll(".delete").forEach(b=>b.addEventListener("click",()=>deleteBooking(selectedDay,b.dataset.time)));
-}
-function fillDays(){dayEl.innerHTML=Object.keys(schedule).filter(d=>!closed.includes(d)).map(d=>`<option value="${esc(d)}">${d}</option>`).join("");updateTimes();}
-function updateTimes(){const d=dayEl.value;timeEl.innerHTML=(schedule[d]||[]).map(t=>`<option value="${t}">${t}</option>`).join("");}
-function openNew(d=selectedDay,t=""){editingKey=null;titleEl.textContent="Agregar turno";fillDays();if(closed.includes(d))d="Martes";dayEl.value=d;updateTimes();if(t)timeEl.value=t;nameEl.value="";serviceEl.value="";modalEl.classList.add("show");setTimeout(()=>nameEl.focus(),100);}
-function editBooking(d,t){editingKey=key(d,t);titleEl.textContent="Editar turno";fillDays();dayEl.value=d;updateTimes();timeEl.value=t;nameEl.value=bookings[editingKey]?.name||"";serviceEl.value=bookings[editingKey]?.service||"";modalEl.classList.add("show");setTimeout(()=>nameEl.focus(),100);}
-function saveBooking(){
- try{
-  const d=dayEl.value,t=timeEl.value,n=nameEl.value.trim(),svc=serviceEl.value.trim();
-  if(!d||!t){alert("Elegí día y horario.");return;}
-  if(!n){alert("Poné el nombre del cliente.");nameEl.focus();return;}
-  const old=editingKey,k=key(d,t);
-  if(bookings[k]&&k!==old){alert("Ese turno ya está ocupado.");return;}
-  if(old&&old!==k)delete bookings[old];
-  bookings[k]={name:n,service:svc};
-  if(!saveData())return;
-  selectedDay=d;editingKey=null;modalEl.classList.remove("show");render();
- }catch(e){alert("Error al guardar: "+e.message);}
-}
-function deleteBooking(d,t){const b=bookings[key(d,t)];if(b&&confirm(`¿Sacar el turno de ${b.name}?`)){delete bookings[key(d,t)];saveData();render();}}
-function closeModal(){modalEl.classList.remove("show");editingKey=null;}
-function copyAvailability(){let msg="¡Hola! 👋 Estos son los turnos disponibles en ShineZone Detail:\n\n",found=false;for(const [d,times] of Object.entries(schedule)){const free=times.filter(t=>!bookings[key(d,t)]);if(free.length){found=true;msg+=`📅 ${d}\n`;free.forEach(t=>msg+=`• ${t}\n`);msg+="\n";}}if(!found)msg="¡Hola! 👋 En este momento no tengo turnos disponibles. Si querés, te aviso cuando se libere uno. 🙌";else msg+="Decime cuál te queda mejor y te lo reservo. 🙌";navigator.clipboard?.writeText(msg).then(()=>{copyBtn.textContent="✅ ¡Copiado!";setTimeout(()=>copyBtn.textContent="📋 Copiar disponibilidad",1500)}).catch(()=>{const ta=document.createElement("textarea");ta.value=msg;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();copyBtn.textContent="✅ ¡Copiado!";setTimeout(()=>copyBtn.textContent="📋 Copiar disponibilidad",1500);});}
-dayEl.addEventListener("change",updateTimes);
-document.querySelectorAll(".primary").forEach(b=>b.addEventListener("click",()=>openNew()));
-document.querySelectorAll(".secondary").forEach(b=>b.addEventListener("click",closeModal));
-document.querySelectorAll(".formbuttons .primary").forEach(b=>b.addEventListener("click",saveBooking));
-copyBtn.addEventListener("click",copyAvailability);
-render();
+ tabsEl.innerHTML=Object.keys(schedule).map(d=>`<button class="daytab ${d===selectedDay?'active':''}" onclick="selectDay('${d}')">${d}</button>`).join("");
 
-const scheduleModal=document.getElementById("scheduleModal");
-const editorEl=document.getElementById("scheduleEditor");
-document.getElementById("manageBtn").addEventListener("click",openScheduleEditor);
-document.getElementById("closeScheduleBtn").addEventListener("click",()=>scheduleModal.classList.remove("show"));
-document.getElementById("saveScheduleBtn").addEventListener("click",saveScheduleEditor);
-function openScheduleEditor(){
-  editorEl.innerHTML="";
-  Object.keys(defaultSchedule).forEach(d=>{
-    const wrap=document.createElement("div");wrap.className="day-edit";wrap.dataset.day=d;
-    wrap.innerHTML=`<strong>${d}</strong><div class="time-row"></div><div class="add-time"><input type="time"><button class="primary" type="button">＋ Agregar</button></div>`;
-    const row=wrap.querySelector('.time-row');
-    (schedule[d]||[]).forEach(t=>addTimeChip(row,t));
-    wrap.querySelector('.add-time button').addEventListener('click',()=>{const inp=wrap.querySelector('input');if(inp.value){addTimeChip(row,inp.value);inp.value='';}});
-    editorEl.appendChild(wrap);
-  });
-  scheduleModal.classList.add("show");
+ const d=selectedDay;
+ const times=schedule[d]||[];
+
+ if(closed.includes(d)){
+  cardsEl.innerHTML=`<div class="card" style="grid-column:1/-1"><h2>${d}</h2><span class="closed">NO TRABAJO</span><div class="empty">No hay turnos disponibles este día.</div></div>`;
+  return;
+ }
+
+ cardsEl.innerHTML=`<div class="card" style="grid-column:1/-1"><h2>Turnos del ${d}</h2>${
+  times.length ? times.map(t=>{
+   const b=bookings[key(d,t)];
+   return `<div class="slot">
+    <div class="time">${t}</div>
+    <div>${b
+      ? `<span class="status busy">OCUPADO</span><div class="name">${esc(b.name)}</div><div class="service">${esc(b.service||"")}</div>`
+      : `<span class="status free">DISPONIBLE</span><div class="service">Podés agendar este turno</div>`}
+    </div>
+    <div class="actions">${b
+      ? `<button title="Editar" onclick="editBooking('${d}','${t}')">✎</button><button title="Eliminar" onclick="deleteBooking('${d}','${t}')">🗑</button>`
+      : `<button title="Agendar" onclick="openNewFor('${d}','${t}')">＋</button>`}
+    </div>
+   </div>`;
+  }).join("") : `<div class="empty">No hay turnos cargados para este día.</div>`
+ }</div>`;
 }
-function addTimeChip(row,t){
-  if([...row.querySelectorAll('.time-chip')].some(x=>x.dataset.time===t)) return;
-  const chip=document.createElement('span');chip.className='time-chip';chip.dataset.time=t;chip.innerHTML=`${t}<button type="button">✕</button>`;
-  chip.querySelector('button').addEventListener('click',()=>chip.remove());row.appendChild(chip);
+
+function selectDay(d){selectedDay=d;render()}
+function fillDays(){dayEl.innerHTML=Object.keys(schedule).filter(d=>!closed.includes(d)).map(d=>`<option value="${d}">${d}</option>`).join("");updateTimes()}
+function updateTimes(){const d=dayEl.value;timeEl.innerHTML=(schedule[d]||[]).map(t=>`<option value="${t}">${t}</option>`).join("")}
+dayEl.addEventListener("change",updateTimes);
+function openNewFor(d,t){
+ editingKey=null;
+ titleEl.textContent="Agregar turno";
+ fillDays();
+ dayEl.value=d;
+ updateTimes();
+ timeEl.value=t;
+ nameEl.value="";
+ serviceEl.value="";
+ modalEl.classList.add("show");
 }
-function saveScheduleEditor(){
-  const next={};
-  editorEl.querySelectorAll('.day-edit').forEach(w=>{next[w.dataset.day]=[...w.querySelectorAll('.time-chip')].map(x=>x.dataset.time).sort();});
-  schedule=next;localStorage.setItem('shinezone_schedule',JSON.stringify(schedule));
-  if(!schedule[selectedDay]) selectedDay='Martes';
-  scheduleModal.classList.remove('show');render();
+function openNew(){editingKey=null;titleEl.textContent="Agregar turno";fillDays();dayEl.value=(closed.includes(selectedDay)?"Martes":selectedDay);updateTimes();nameEl.value="";serviceEl.value="";modalEl.classList.add("show")}
+function editBooking(d,t){editingKey=key(d,t);titleEl.textContent="Editar turno";fillDays();dayEl.value=d;updateTimes();timeEl.value=t;nameEl.value=bookings[editingKey].name;serviceEl.value=bookings[editingKey].service||"";modalEl.classList.add("show")}
+function saveBooking(){
+ const d=dayEl.value,t=timeEl.value,n=nameEl.value.trim(),svc=serviceEl.value.trim();
+ if(!n){alert("Poné el nombre del cliente.");return}
+ const newKey=key(d,t), old=editingKey;
+ if(bookings[newKey] && newKey!==old){alert("Ese turno ya está ocupado.");return}
+ if(old && old!==newKey) delete bookings[old];
+ bookings[newKey]={name:n,service:svc};
+ if(persist()){selectedDay=d;closeModal();render()}
 }
+function deleteBooking(d,t){const k=key(d,t);if(bookings[k]&&confirm(`¿Sacar el turno de ${bookings[k].name}?`)){delete bookings[k];if(persist())render()}}
+function closeModal(){modalEl.classList.remove("show")}
+window.openNew=openNew;window.saveBooking=saveBooking;window.closeModal=closeModal;window.editBooking=editBooking;window.deleteBooking=deleteBooking;window.selectDay=selectDay;
+render();
 </script>
-</body>
+
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}</script></body>
 </html>
